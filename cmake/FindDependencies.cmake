@@ -19,6 +19,9 @@ endif()
 
 find_package(OpenMP REQUIRED COMPONENTS C CXX)
 
+set(CMAKE_PREFIX_PATH "/usr;/usr/lib/x86_64-linux-gnu;/usr/lib/x86_64-linux-gnu/cmake;/usr/local/cuda-12.4")
+set(CMAKE_CUDA_COMPILER /usr/local/cuda-12.4/bin/nvcc)
+
 find_package(Boost ${COLMAP_FIND_TYPE} COMPONENTS
              graph
              program_options

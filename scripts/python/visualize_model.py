@@ -121,6 +121,9 @@ class Model:
     def create_window(self):
         self.__vis = open3d.visualization.Visualizer()
         self.__vis.create_window()
+        # 获取渲染选项并设置点大小（默认是 5.0，可以设小一点）
+        render_option = self.__vis.get_render_option()
+        render_option.point_size = 1.0  # 越小越精细，默认是5.0
 
     def show(self):
         self.__vis.poll_events()

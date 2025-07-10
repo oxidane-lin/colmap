@@ -282,6 +282,9 @@ def read_images_binary(path_to_model_file):
                 ]
             )
             point3D_ids = np.array(tuple(map(int, x_y_id_s[2::3])))
+            # print(image_id, qvec, tvec, image_name)
+            print(image_id, tvec[0], tvec[1], tvec[2])
+
             images[image_id] = Image(
                 id=image_id,
                 qvec=qvec,
@@ -562,7 +565,86 @@ def rotmat2qvec(R):
         qvec *= -1
     return qvec
 
+def save_xyz_to_ply(points_xyz, ply_path):
+    """
+    将 Nx3 的 numpy 数组保存为 PLY 文件（无颜色）。
+    """
+    assert points_xyz.shape[1] == 3, "points must be of shape Nx3"
 
+    with open(ply_path, 'w') as f:
+        f.write('ply\n')
+        f.write('format ascii 1.0\n')
+        f.write(f'element vertex {len(points_xyz)}\n')
+        f.write('property float x\n')
+        f.write('property float y\n')
+        f.write('property float z\n')
+        f.write('end_header\n')
+
+        for pt in points_xyz:
+            f.write(f'{pt[0]} {pt[1]} {pt[2]}\n')
+
+import cv2
+def project_points(K, R, t, points3D):
+    # 转换为相机坐标系
+    # 本来应该是R^-1(P_w - t),为了用广播规则，将行列调换了
+    points_cam = (points3D - t.reshape(1, 3)) @ R
+    # 过滤 Z<0 的点（在相机后方）
+    valid_mask = points_cam[:, 2] > 0
+    points_cam = points_cam[valid_mask]
+
+    # 投影到像素平面
+    proj_points = (K @ points_cam.T).T
+    proj_points /= proj_points[:, 2:3]
+    return proj_points[:, :2], valid_mask
+
+from scipy.spatial.transform import Rotation as R
+
+def reproject2image(cameras, images, points3D, input_image_path, output_image_path):
+
+    camera = cameras[1]
+
+    fx, fy, cx, cy = camera.params
+    K = np.array([[fx, 0, cx], [0, fy, cy], [0,  0,  1]])
+    # K = np.array([[2835.744, 0, 1913.416], [0, 2833.582, 1074.806], [0,  0,  1]])
+    print(K)
+
+    os.makedirs(output_image_path, exist_ok=True)
+    
+    for _, image in images.items():
+        #image: image_id, qvec, tvec, camera_id, name, xys, point3d_ids 
+        img_path = os.path.join(input_image_path, image.name)
+        raw_img = cv2.imread(img_path)
+        if raw_img is None:
+            print(f"无法读取图片：{img_path}")
+            continue
+        quat = image.qvec 
+        trans = image.tvec      # 相机坐标系中世界原点的坐标
+        R_wc = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix() 
+        R_cw = R_wc.T           # 相机在世界系的旋转
+        t_cw = -R_cw @ trans    # 相机在世界系的坐标
+
+        reproject_points = []
+        reproject_colors = []
+        for _, point3d in points3D.items():
+            if image.id in point3d.image_ids:
+                reproject_points.append(point3d.xyz)
+                reproject_colors.append(point3d.rgb)
+        # save_xyz_to_ply(np.array(reproject_points), "./reproject_points.ply")
+
+        proj_points, mask = project_points(K, R_cw, t_cw, points3D=np.array(reproject_points))
+        print(len(proj_points))
+        for (x, y), color in zip(proj_points, reproject_colors):
+            x, y = int(round(x)), int(round(y))
+            if 0 <= x < raw_img.shape[1] and 0 <= y < raw_img.shape[0]:
+                r, g, b = int(color[0]), int(color[1]), int(color[2])
+                # raw_img[y, x] = [b, g, r]
+                # cv2.circle(raw_img, (x, y), 5, (b, g, r), -1)
+                cv2.circle(raw_img, (x, y), 5, (0, 255, 0), -1)
+        output_path = os.path.join(output_image_path, image.name)
+        cv2.imwrite(output_path, raw_img)
+        print("image saved:", output_path)
+        # break
+        
 def main():
     parser = argparse.ArgumentParser(
         description="Read and write COLMAP binary and text models"
@@ -581,6 +663,9 @@ def main():
         help="output model format",
         default=".txt",
     )
+    parser.add_argument("--input_image_path", default="/data/gs/anting_0707/undistorted_2000_3500_model/images/")
+    parser.add_argument("--output_image_path", default="/data/gs/anting_0707/undistorted_2000_3500_model/reprojected_images/")
+
     args = parser.parse_args()
 
     cameras, images, points3D = read_model(
@@ -588,8 +673,14 @@ def main():
     )
 
     print("num_cameras:", len(cameras))
+    print(cameras[1])
     print("num_images:", len(images))
     print("num_points3D:", len(points3D))
+    print(points3D[1])
+
+    reproject2image(cameras=cameras, images=images, points3D=points3D, \
+                    input_image_path=args.input_image_path, \
+                    output_image_path=args.output_image_path)
 
     if args.output_model is not None:
         write_model(
