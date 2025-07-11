@@ -283,7 +283,7 @@ def read_images_binary(path_to_model_file):
             )
             point3D_ids = np.array(tuple(map(int, x_y_id_s[2::3])))
             # print(image_id, qvec, tvec, image_name)
-            print(image_id, tvec[0], tvec[1], tvec[2])
+            print(image_id, tvec[0], tvec[1], tvec[2], image_name)
 
             images[image_id] = Image(
                 id=image_id,
@@ -600,7 +600,7 @@ def project_points(K, R, t, points3D):
 from scipy.spatial.transform import Rotation as R
 
 def reproject2image(cameras, images, points3D, input_image_path, output_image_path):
-
+    '''检查重投影结果'''
     camera = cameras[1]
 
     fx, fy, cx, cy = camera.params
@@ -644,7 +644,43 @@ def reproject2image(cameras, images, points3D, input_image_path, output_image_pa
         cv2.imwrite(output_path, raw_img)
         print("image saved:", output_path)
         # break
-        
+
+def rotation_matrix_to_angle(R_diff):
+    trace_val = np.trace(R_diff)
+    angle_rad = np.arccos(np.clip((trace_val - 1) / 2, -1.0, 1.0))  # 角度范围保护
+    angle_deg = np.degrees(angle_rad)
+    return angle_deg
+
+def cal_pose_diffs(images):
+    R_list , t_list = [], []
+    for _, image in sorted(images.items()):
+        #image: image_id, qvec, tvec, camera_id, name, xys, point3d_ids 
+        quat = image.qvec 
+        trans = image.tvec      # 相机坐标系中世界原点的坐标
+        R_wc = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix() 
+        R_cw = R_wc.T           # 相机在世界系的旋转
+        t_cw = -R_cw @ trans    # 相机在世界系的坐标
+        R_list.append(R_cw)
+        t_list.append(t_cw)
+
+    diffs = []
+    for i in range(len(t_list) - 1):
+        # 平移差
+        delta_t = np.linalg.norm(t_list[i+1] - t_list[i])
+
+        # 旋转差
+        R_diff = R_list[i+1] @ R_list[i].T
+        delta_angle = rotation_matrix_to_angle(R_diff)
+
+        diff = {
+            'frame': (i, i+1),
+            'translation_diff': delta_t,
+            'rotation_diff_deg': delta_angle
+        }
+        diffs.append(diff)
+        print(diff)
+    return diffs
+
 def main():
     parser = argparse.ArgumentParser(
         description="Read and write COLMAP binary and text models"
@@ -676,11 +712,13 @@ def main():
     print(cameras[1])
     print("num_images:", len(images))
     print("num_points3D:", len(points3D))
-    print(points3D[1])
 
-    reproject2image(cameras=cameras, images=images, points3D=points3D, \
-                    input_image_path=args.input_image_path, \
-                    output_image_path=args.output_image_path)
+
+    # reproject2image(cameras=cameras, images=images, points3D=points3D, \
+    #                 input_image_path=args.input_image_path, \
+    #                 output_image_path=args.output_image_path)
+
+    cal_pose_diffs(images)
 
     if args.output_model is not None:
         write_model(
