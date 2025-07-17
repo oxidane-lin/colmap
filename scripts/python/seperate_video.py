@@ -134,6 +134,32 @@ def process_video(video_path, srt_path, output_dir, start_idx, jpg_quality):
     print(f"Start frame idx for next video: {frame_idx}")
     cap.release()
 
+def process_video_by_idx(video_path, srt_path, output_dir, start_idx, jpg_quality, chosen_index):
+    srt_data = parse_srt(srt_path)
+    cap = cv2.VideoCapture(video_path)
+    frame_idx = start_idx
+    print(f"Start frame idx for video {video_path}: {frame_idx}")
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if frame_idx in chosen_index:
+            filename = f"{frame_idx:06d}.JPG"
+            filepath = os.path.join(output_dir, filename)
+
+            cv2.imwrite(filepath, frame, [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])
+            meta = srt_data.get(frame_idx - start_idx + 1)
+            if meta:
+                write_exif(filepath, meta)
+            print(f"[{frame_idx}] Saved {filename} (keyframe)")
+
+        frame_idx += 1
+
+    print(f"Start frame idx for next video: {frame_idx}")
+    cap.release()
+
 def main():
     parser = argparse.ArgumentParser(
         description="Split video into images"
