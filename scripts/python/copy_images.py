@@ -2,8 +2,8 @@ import os
 import shutil
 
 # 设置你的主文件夹路径
-parent_dir = "/data/gs/anting/0712_card/cam2_card1/"  # 修改为你的路径
-target_dir = "/data/gs/anting/0712_card/seg5_full/"  # 修改为你的路径
+parent_dir = "/data/gs/anting/0712_cam/"  # 修改为你的路径
+target_dir = "/data/gs/anting/0712_cam_full/"  # 修改为你的路径
 
 # 遍历 parent_dir 下的所有文件夹
 for subfolder in os.listdir(parent_dir):

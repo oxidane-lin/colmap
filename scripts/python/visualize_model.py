@@ -70,9 +70,12 @@ class Model:
         self.__vis.poll_events()
         self.__vis.update_renderer()
 
-    def add_cameras(self, scale=1):
+    def add_cameras(self, scale=1, downsample = 10):
         frames = []
         for img in self.images.values():
+            if img.id % downsample:
+                continue
+
             # rotation
             R = qvec2rotmat(img.qvec)
 
@@ -213,7 +216,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-
+import pdb
 def main():
     args = parse_args()
 
@@ -222,13 +225,17 @@ def main():
     model.read_model(args.input_model, ext=args.input_format)
 
     print("num_cameras:", len(model.cameras))
+    for idx, img in model.images.items():
+        print(idx, img)
+        break
     print("num_images:", len(model.images))
     print("num_points3D:", len(model.points3D))
 
+    # pdb.set_trace()
     # display using Open3D visualization tools
     model.create_window()
-    model.add_points()
-    model.add_cameras(scale=0.25)
+    model.add_points(min_track_len=0)
+    model.add_cameras(scale=0.25, downsample=1)
     model.show()
 
 

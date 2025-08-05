@@ -140,6 +140,7 @@ def read_cameras_binary(path_to_model_file):
         void Reconstruction::ReadCamerasBinary(const std::string& path)
     """
     cameras = {}
+    # return cameras
     with open(path_to_model_file, "rb") as fid:
         num_cameras = read_next_bytes(fid, 8, "Q")[0]
         for _ in range(num_cameras):
@@ -251,6 +252,7 @@ def read_images_binary(path_to_model_file):
         void Reconstruction::WriteImagesBinary(const std::string& path)
     """
     images = {}
+    # return images
     with open(path_to_model_file, "rb") as fid:
         num_reg_images = read_next_bytes(fid, 8, "Q")[0]
         for _ in range(num_reg_images):
@@ -283,7 +285,7 @@ def read_images_binary(path_to_model_file):
             )
             point3D_ids = np.array(tuple(map(int, x_y_id_s[2::3])))
             # print(image_id, qvec, tvec, image_name)
-            print(image_id, tvec[0], tvec[1], tvec[2], image_name)
+            # print(image_id, tvec[0], tvec[1], tvec[2], image_name)
 
             images[image_id] = Image(
                 id=image_id,
